@@ -1,0 +1,49 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "retrieval-bridge"
+version = "0.1.0"
+description = "turbopuffer-style hybrid retrieval as a swappable backend for PromptQL, behind one stable command."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "viper9503" }]
+keywords = ["promptql", "hasura-ddn", "turbopuffer", "vector-search", "hybrid-search", "rag", "lancedb"]
+
+# Base install = zero API keys: local embeddings (fastembed) + embedded vector
+# store (LanceDB). Everything cloud is an optional extra below.
+dependencies = [
+    "pydantic>=2.5",
+    "fastembed>=0.4",
+    "lancedb>=0.13",
+    "numpy>=1.24",
+]
+
+[project.optional-dependencies]
+turbopuffer = ["turbopuffer>=2.2"]
+openai = ["openai>=1.40"]
+voyage = ["voyageai>=0.3"]
+cohere = ["cohere>=5.11"]
+pgvector = ["psycopg[binary]>=3.1", "pgvector>=0.3"]
+llm = ["anthropic>=0.40"]
+all = [
+    "turbopuffer>=2.2",
+    "openai>=1.40",
+    "voyageai>=0.3",
+    "cohere>=5.11",
+    "psycopg[binary]>=3.1",
+    "pgvector>=0.3",
+    "anthropic>=0.40",
+]
+dev = ["pytest>=8.0"]
+
+[project.urls]
+Repository = "https://github.com/viper9503/retrieval-bridge"
+
+[tool.hatch.build.targets.wheel]
+packages = ["retrieval_bridge"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -1,0 +1,7 @@
+# Base (zero-key) install for the standalone demo: local embeddings + LanceDB.
+# For cloud backends/embedders install the extras instead, e.g.:
+#   pip install -e ".[turbopuffer]"   or   pip install -e ".[all]"
+pydantic>=2.5
+fastembed>=0.4
+lancedb>=0.13
+numpy>=1.24
