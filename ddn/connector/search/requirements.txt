@@ -1,0 +1,9 @@
+# Hasura DDN Python lambda connector (Python 3.12 runtime).
+ndc-sdk-python==0.42
+
+# The retrieval bridge itself, installed straight from the repo with the
+# turbopuffer extra so production deploys can hit a seeded namespace. The base
+# package already pulls in fastembed (local BGE-small embeddings) and LanceDB, so
+# the container can clone-and-run hybrid search with no cloud keys; set
+# RETRIEVAL_BRIDGE_BACKEND=turbopuffer (see .env.example) to point at turbopuffer.
+retrieval-bridge[turbopuffer] @ git+https://github.com/viper9503/retrieval-bridge.git
