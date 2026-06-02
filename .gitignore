@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+.pytest_cache/
+build/
+dist/
+.venv/
+venv/
+
+# Secrets
+.env
+ddn/connector/search/.env
+
+# Local data stores (regenerate with seed.py)
+.lancedb/
+*.db
+.structured.db
+
+# Model cache (fastembed downloads weights here on first run)
+.fastembed_cache/
+.cache/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
