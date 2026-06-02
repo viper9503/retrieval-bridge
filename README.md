@@ -93,6 +93,26 @@ python scripts/bench.py            # proof: hybrid beats pure-vector on exact to
 
 `demo.py` executes the full plan a PromptQL prompt would generate — retrieve → classify root cause → summarize the fix → join account facts → rank by plan tier and recency — and prints each step so the division of labor is visible.
 
+### Try your own questions
+
+The demo isn't tied to one incident — run any prompt, or pick from 10 built-in examples:
+
+```bash
+python scripts/demo.py --list                       # list the built-in example incidents
+python scripts/demo.py --example oom                # OOM/crash incident
+python scripts/demo.py --example dim                # embedding dimension mismatch (ranks enterprise first)
+python scripts/demo.py --query "users can't log in, 401 after SSO"
+python scripts/demo.py -q "..." --top-k 5 --status resolved --plan-tier enterprise
+```
+
+Or explore retrieval interactively — type any query and watch hybrid search respond (great for a live demo):
+
+```bash
+python scripts/ask.py                               # REPL: type queries, see ranked hits
+python scripts/ask.py "ERR_TLS_526 certificate"     # one-shot
+python scripts/ask.py "throttled during big uploads" --plan-tier enterprise
+```
+
 ### Run it against real turbopuffer (optional)
 
 ```bash
