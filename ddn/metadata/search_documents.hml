@@ -1,0 +1,108 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# search_documents — the PromptQL-facing Command
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# This is the seam between PromptQL and the hybrid-retrieval backend.
+#
+# A Command (kind: Command, version: v1) exposes ONE function from a data
+# connector to the Hasura DDN supergraph. Here it wraps the Python lambda
+# connector's `search_documents` function (ddn/connector/search/functions.py),
+# whose body is retrieval_bridge.search.RetrievalBridge.search_documents — the
+# *same* code the local demo runs. Swap the backend (turbopuffer ⇄ LanceDB ⇄
+# pgvector) and this metadata does not change: the command signature is the
+# stable interface.
+#
+# HOW THIS FILE IS NORMALLY PRODUCED
+#   `ddn connector-link add-resources <connector>` introspects the connector and
+#   generates a first draft of this Command (and the SearchHit ObjectType in
+#   SearchHit.hml). The connector function's docstring becomes the initial
+#   `description`. You then HAND-TUNE the `description` below, because that text —
+#   not the Python docstring — is what the PromptQL planner reads when deciding
+#   whether to call this tool. Treat it as a tool spec written for the planner.
+#
+# WHY THE DESCRIPTION MATTERS (read this before editing)
+#   Tool selection in PromptQL is driven by metadata `description` fields. If the
+#   description is vague, the planner won't reach for hybrid retrieval when a user
+#   asks "find tickets like this one" or "what past incidents match …". The text
+#   below deliberately spells out: what it does, WHEN to use it, what the args
+#   mean, and what comes back (including the `account` relationship to join).
+# ─────────────────────────────────────────────────────────────────────────────
+
+kind: Command
+version: v1
+definition:
+  name: search_documents
+
+  # ── Planner-facing tool spec. Multi-line, intentionally explicit. ──
+  description: |
+    Hybrid (semantic + exact-keyword) search over the support-ticket corpus.
+
+    USE THIS to find tickets relevant to a natural-language description of an
+    incident, question, or symptom — e.g. "past resolved incidents that look
+    like a 503 storm after a deploy", "tickets mentioning ERR_DIM_384", or
+    "anything about the connection pool on the scale plan". It is the right tool
+    whenever the user wants to retrieve, look up, find similar, or gather past
+    tickets before you reason over them.
+
+    It runs BOTH a vector (semantic-meaning) sub-query AND a BM25 (exact-token)
+    sub-query, then fuses them with reciprocal-rank fusion. That hybrid is the
+    point: pure vector search misses exact tokens like error codes (ERR_DIM_384,
+    CERT_EXPIRED), ticket IDs (TCK-10042), and plan tiers, while BM25 misses
+    paraphrases — together they catch both. Prefer this over a plain text scan.
+
+    Returns the top_k most relevant tickets as SearchHit rows (best first by the
+    fused `score`). Each SearchHit carries flat, filterable attributes (status,
+    plan_tier, error_code, severity, root_cause, component, created_at) and an
+    `id` (the ticket id). Follow the `account` relationship on a SearchHit to
+    join its structured account facts (project_name, plan_tier, monthly_revenue,
+    region, seat_count) — use that to rank or prioritise hits by customer value.
+
+    Typical plan: search_documents(...) to narrow the corpus to a handful of
+    candidates, then classify/summarize each, join `account`, and rank.
+
+  # ── Return type. A NON-NULL LIST of NON-NULL SearchHit. ──
+  # SearchHit is the named ObjectType the connector return type maps to
+  # (see SearchHit.hml). It MUST contain `id` so the `account` relationship
+  # (relationship_searchhit_account.hml) can attach.
+  outputType: "[SearchHit!]!"
+
+  # ── Arguments exposed to the planner. These mirror the lambda signature:
+  #    search_documents(query, top_k, plan_tier, status). The connector flattens
+  #    plan_tier/status into the backend-agnostic `filters` dict internally; here
+  #    they are first-class scalar args so the planner can set them directly. ──
+  arguments:
+    - name: query
+      type: String!
+      description: |
+        Natural-language query describing the incident, symptom, or topic to
+        find tickets about. Drives BOTH the semantic (vector) and exact-keyword
+        (BM25) sub-queries — include any literal error codes or IDs verbatim so
+        BM25 can match them exactly.
+
+    - name: top_k
+      type: Int
+      description: |
+        Maximum number of tickets to return, best-first by fused relevance.
+        Defaults to 5 if omitted. Keep small (5–10): this step narrows the
+        corpus to candidates worth reasoning over, not a full scan.
+
+    - name: plan_tier
+      type: String
+      description: |
+        Optional exact-match filter on the ticket's plan tier
+        (one of: free, launch, scale, enterprise). Omit to search all tiers.
+
+    - name: status
+      type: String
+      description: |
+        Optional exact-match filter on ticket status (e.g. "resolved" or
+        "open"). Set to "resolved" when the user wants past incidents that were
+        actually fixed. Omit to search all statuses.
+
+  # ── Where the function lives. `dataConnectorName` must match the connector's
+  #    DataConnectorLink name; `function` is the connector function name as it
+  #    appears in the introspected NDC schema. ──
+  source:
+    dataConnectorName: search
+    dataConnectorCommand:
+      function: search_documents

@@ -1,0 +1,97 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# SearchHit — the named return type of the search_documents command
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# ⚠️ NORMALLY GENERATED, NOT HAND-WRITTEN.
+#   When you run `ddn connector-link add-resources search`, the CLI introspects
+#   the Python lambda connector, sees that `search_documents` returns a typed
+#   object, and emits this ObjectType automatically (along with a draft of
+#   search_documents.hml). This file is committed here as a REFERENCE so the
+#   join in relationship_searchhit_account.hml is readable on its own and the
+#   field set is documented — but on a real `ddn` workflow you would let the CLI
+#   regenerate it from the connector rather than maintain it by hand.
+#
+# WHY A NAMED OBJECT TYPE MATTERS
+#   The lambda returns a concrete object (the `Hit` shape in
+#   retrieval_bridge/types.py, with its metadata fields hoisted to the top level
+#   by the connector). DDN turns that into a NAMED ObjectType — `SearchHit`.
+#   A name is what lets a Relationship target it: relationships attach to a
+#   type, not to a command. And the `id` field below is the join key — without
+#   it, the SearchHit → Accounts relationship has nothing to map from.
+#
+# FIELD NOTES
+#   id … created_at are the searchable text + flat filterable attributes the
+#   backend stores (see scripts/seed.py ATTRS and types.Hit). `score` is the
+#   fused reciprocal-rank-fusion relevance (higher is better; ranking-only, not
+#   comparable across backends). component/error_code/severity/root_cause are
+#   the diagnostic facets used for filtering and for checking classify() output.
+# ─────────────────────────────────────────────────────────────────────────────
+
+kind: ObjectType
+version: v1
+definition:
+  name: SearchHit
+  description: |
+    A single hybrid-retrieval result from the search_documents command: one
+    support ticket with its fused relevance score, body text, flat filterable
+    attributes, and the `id` join key used by the `account` relationship.
+  fields:
+    - name: id
+      type: String!
+      description: |
+        Stable ticket id (e.g. "TCK-10042"). THE JOIN KEY — maps to
+        Accounts.ticket_id via the SearchHit.account relationship.
+    - name: score
+      type: Float!
+      description: Fused reciprocal-rank-fusion relevance score; higher is better.
+    - name: text
+      type: String!
+      description: The retrieved ticket text (subject + body + resolution).
+    - name: project_id
+      type: String!
+      description: Project the ticket belongs to (e.g. "proj-atlas").
+    - name: plan_tier
+      type: String!
+      description: Plan tier of the ticket's account (free | launch | scale | enterprise).
+    - name: status
+      type: String!
+      description: Ticket status (e.g. "open" | "resolved").
+    - name: created_at
+      type: String!
+      description: Date the ticket was opened (ISO date string, e.g. "2025-09-11").
+    - name: component
+      type: String!
+      description: Affected component/subsystem (e.g. "worker", "edge", "api").
+    - name: error_code
+      type: String!
+      description: Exact error token (e.g. "ERR_DIM_384", "CERT_EXPIRED", "OOMKilled").
+    - name: severity
+      type: String!
+      description: Severity label (e.g. "sev1" | "sev2" | "sev3").
+    - name: root_cause
+      type: String!
+      description: Labeled root cause (e.g. "out_of_memory", "dimension_mismatch").
+
+# ── Permissions: who may read SearchHit fields. The connector return type is
+#    public read for every authenticated/anonymous role in this demo supergraph;
+#    tighten as needed in a real deployment. ──
+---
+kind: TypePermissions
+version: v1
+definition:
+  typeName: SearchHit
+  permissions:
+    - role: admin
+      output:
+        allowedFields:
+          - id
+          - score
+          - text
+          - project_id
+          - plan_tier
+          - status
+          - created_at
+          - component
+          - error_code
+          - severity
+          - root_cause
