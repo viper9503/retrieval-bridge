@@ -1,0 +1,67 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# SearchHit.account — THE join. Retrieved ticket  →  its structured account row.
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# This is the whole "join structured facts to a hit, with no join code" claim,
+# expressed declaratively. Once this exists, a PromptQL plan (or a raw GraphQL
+# query) can ask:
+#
+#     search_documents(query: "...") {
+#       id  score  text
+#       account { project_name  plan_tier  monthly_revenue }   # ← resolved here
+#     }
+#
+# and DDN resolves `account` for every hit by matching SearchHit.id to
+# Accounts.ticket_id. retrieval_bridge/structured.py:get_by_ids is the local
+# (SQLite) analog of exactly this resolution.
+#
+# ⚠️ THIS FILE IS HAND-AUTHORED — it is NOT produced by `ddn relationship add`.
+#   `ddn relationship add` only generates relationships from Postgres FOREIGN
+#   KEYS between two Postgres Models. This join is different: the source is a
+#   COMMAND RETURN TYPE (SearchHit, coming from the Python connector), not a
+#   Postgres model, and there is no FK between them. So you write it by hand.
+#
+# ⚠️ sourceType IS THE RETURN TYPE NAME (SearchHit), NEVER THE COMMAND NAME.
+#   Relationships attach to a TYPE. The source here is the ObjectType the
+#   search_documents command returns — `SearchHit` — not the command
+#   `search_documents`. (Defining `name: account` on SearchHit is what makes the
+#   `account { ... }` selection above legal.)
+#
+# REQUIRED BITS
+#   • relationshipType: Object   — REQUIRED when the target is a Model that
+#     returns at most one row per source (ticket_id is unique). Use `Array` only
+#     for one-to-many. Here every ticket maps to exactly one account row.
+#   • mapping: source field `id`  →  target Model field `ticket_id`.
+# ─────────────────────────────────────────────────────────────────────────────
+
+kind: Relationship
+version: v1
+definition:
+  name: account
+
+  # Source is the COMMAND RETURN TYPE, not the command. (SearchHit, defined in
+  # SearchHit.hml / normally generated on connector introspection.)
+  sourceType: SearchHit
+
+  target:
+    model:
+      name: Accounts
+      # Subgraph that owns the Accounts model. Adjust if you place it elsewhere.
+      subgraph: app
+      # REQUIRED for a model target that resolves to a single row per hit.
+      relationshipType: Object
+
+  # Join key mapping: SearchHit.id  →  Accounts.ticket_id.
+  mapping:
+    - source:
+        fieldPath:
+          - fieldName: id
+      target:
+        modelField:
+          - fieldName: ticket_id
+
+  description: |
+    The account facts for this retrieved ticket. Resolves SearchHit.id against
+    Accounts.ticket_id so a plan can join project_name / plan_tier /
+    monthly_revenue to each hit and rank or prioritise by customer value —
+    declaratively, with no join code.

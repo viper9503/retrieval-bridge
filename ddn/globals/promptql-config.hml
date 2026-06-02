@@ -1,0 +1,65 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# PromptQlConfig — turns this supergraph into a PromptQL-enabled project
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# This is the global config that tells DDN which LLM powers PromptQL's planner
+# and its AI primitives (summarize / classify / extract / visualize), plus the
+# `systemInstructions` that steer how the planner uses YOUR tools. It lives at
+# globals/metadata/promptql-config.hml in a standard DDN layout; it is kept here
+# under ddn/globals/ for this repo.
+#
+# ⚠️ MODEL STRINGS ARE POINT-IN-TIME. The exact model identifiers below
+#   (claude-sonnet-4-5-20250929) were current when this was written and WILL
+#   drift — Anthropic publishes dated snapshots that get superseded. Before
+#   deploying, replace them with a current Anthropic model id from the docs.
+#   Anthropic is the recommended provider for PromptQL.
+#
+# The apiKey is read from an environment variable at runtime (never hard-code a
+# key here); set ANTHROPIC_API_KEY in your DDN env / secrets.
+# ─────────────────────────────────────────────────────────────────────────────
+
+kind: PromptQlConfig
+version: v2
+definition:
+
+  # ── LLM that drives PLANNING (turning a question into a query plan). ──
+  llm:
+    provider: anthropic
+    model: claude-sonnet-4-5-20250929   # point-in-time — verify/replace before deploy
+    apiKey:
+      valueFromEnv: ANTHROPIC_API_KEY
+
+  # ── LLM that backs the AI PRIMITIVES (executor.summarize / classify /
+  #    extract / visualize) the plan calls. Can match `llm` or differ. ──
+  aiPrimitivesLlm:
+    provider: anthropic
+    model: claude-sonnet-4-5-20250929   # point-in-time — verify/replace before deploy
+    apiKey:
+      valueFromEnv: ANTHROPIC_API_KEY
+
+  # ── Steering for the planner. This is where we tell PromptQL HOW to use the
+  #    retrieval-bridge tools — reinforcing the `description` fields on the
+  #    search_documents command and the SearchHit.account relationship. ──
+  systemInstructions: |
+    You answer questions about support tickets.
+
+    RETRIEVAL: When the user describes an incident, symptom, error, or asks to
+    find / look up / gather similar or past tickets, ALWAYS use the
+    `search_documents` command to retrieve candidate tickets first. It runs
+    hybrid (semantic + exact-keyword/BM25) search, so include any literal error
+    codes, ticket IDs, or plan tiers from the question verbatim in the `query`
+    so exact tokens match. Use the `status` argument (e.g. "resolved") and
+    `plan_tier` argument to filter when the user implies them, and keep `top_k`
+    small (5–10) — this step narrows the corpus to a handful of candidates to
+    reason over, it is not the whole answer.
+
+    JOINING FACTS: To get account / customer context for a retrieved ticket
+    (project name, plan tier, monthly revenue, region, seat count), follow the
+    `account` relationship on each SearchHit — do not try to look those up
+    separately. Use plan_tier and monthly_revenue from `account` when the user
+    wants results prioritised or ranked by customer value.
+
+    REASONING: After retrieving, use the AI primitives where judgment is needed
+    (classify the root cause of a ticket, summarize its fix) and do the rest —
+    filtering, joining, ranking — deterministically. Treat retrieval as a tool
+    inside the plan, not as the final answer.
